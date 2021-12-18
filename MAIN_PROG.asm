@@ -8,6 +8,7 @@ DEST_REG_NUM                DB ?
 DEST_MEMORY_ADDRESS         DB 5, ?, 5 DUP(0)
 DEST_OPTION                 DB ?
 DEST_MEMORY_ADDRESS_NUMBER  DW ?
+DEST_REG_16_8_ADDRESS       DW ?
 
 SRC_REG_NUM                 DB ?
 SRC_MEMORY_ADDRESS          DB 5, ?, 5 DUP(0)
@@ -15,6 +16,8 @@ SRC_IMMEDIATE_VALUE         DB 5, ?, 5 DUP(0)
 SRC_OPTION                  DB ?
 SRC_MEMORY_ADDRESS_NUMBER   DW ?
 SRC_IMMEDIATE_VALUE_NUMBER  DW ?
+SRC_REG_16_VALUE            DW ?
+SRC_REG_8_VALUE             DB ?
 
 VAX DW 0
 VBX DW 0
@@ -122,7 +125,8 @@ EXE_MOVE_COMMAND MACRO
     ;   CHECKING IF SRC REGISTER IS 16 BIT
     CMP SRC_REG_NUM, 7
     JG  SIZE_MISMATCH_ERROR
-    ;   MOVING VALUE OF THE SOURCE TO THE DESTINATION
+    ;   SRC IS 16 REG
+    MOV SI, SRC_REG_16_VALUE
     MOV [DI], SI
     JMP COMMAND_EXECUTED
     
@@ -132,22 +136,19 @@ EXE_MOVE_COMMAND MACRO
     ;   SRC IS MEMORY
     MOV BX, SRC_MEMORY_ADDRESS_NUMBER
     MOV DX, [BX]
-    MOV [DI], DX
+    MOV BX, DEST_REG_16_8_ADDRESS
+    MOV [BX], DX
     JMP COMMAND_EXECUTED
             
     SRC_NOT_MEMORY_DEST_16_BIT_REG:
     ;   SRC IS IMMEDIATE VALUE
     MOV DX, SRC_IMMEDIATE_VALUE_NUMBER
-    MOV [DI], DX
-    
+    MOV BX, DEST_REG_16_8_ADDRESS
+    MOV [BX], DX
     JMP COMMAND_EXECUTED
     
+    
     DEST_REG_IS_8_BIT:
-    
-    
-    
-    
-    
     
     CMP SRC_OPTION, 1
     JNE SRC_NOT_REG_DEST_8_BIT_REG
@@ -155,8 +156,10 @@ EXE_MOVE_COMMAND MACRO
     ;   CHECKING IF SRC REGISTER IS 8 BIT
     CMP SRC_REG_NUM, 8
     JL  SIZE_MISMATCH_ERROR
-    ;   MOVING VALUE OF THE SOURCE TO THE DESTINATION
-    MOV [DI], DL
+    ;   SRC IS 8 REG
+    MOV BX, DEST_REG_16_8_ADDRESS
+    MOV DL, SRC_REG_8_VALUE
+    MOV [BX], DL
     JMP COMMAND_EXECUTED
     
     SRC_NOT_REG_DEST_8_BIT_REG:
@@ -165,7 +168,8 @@ EXE_MOVE_COMMAND MACRO
     ;   SRC IS MEMORY
     MOV BX, SRC_MEMORY_ADDRESS_NUMBER
     MOV DL, [BX]
-    MOV [DI], DL
+    MOV BX, DEST_REG_16_8_ADDRESS
+    MOV [BX], DL
     JMP COMMAND_EXECUTED
             
     SRC_NOT_MEMORY_DEST_8_BIT_REG:
@@ -174,11 +178,9 @@ EXE_MOVE_COMMAND MACRO
     JG  SIZE_MISMATCH_ERROR
     ;   IMMEDIATE VALUE SIZE IS CORRECT
     MOV DL, BYTE PTR SRC_IMMEDIATE_VALUE_NUMBER
-    MOV [DI], DL
+    MOV BX, DEST_REG_16_8_ADDRESS
+    MOV [BX], DL
     JMP COMMAND_EXECUTED
-    
-    
-    
     
     
     DEST_IS_MEMORY:
@@ -192,6 +194,7 @@ EXE_MOVE_COMMAND MACRO
     ;   SRC REG IS 16 BIT
     
     MOV BX, DEST_MEMORY_ADDRESS_NUMBER
+    MOV SI, SRC_REG_16_VALUE
     MOV [BX], SI
     JMP COMMAND_EXECUTED
     
@@ -199,6 +202,7 @@ EXE_MOVE_COMMAND MACRO
     ;   SRC REG IS 8 BIT
     
     MOV BX, DEST_MEMORY_ADDRESS_NUMBER
+    MOV DL, SRC_REG_8_VALUE
     MOV [BX], DL
     JMP COMMAND_EXECUTED
     
@@ -229,6 +233,16 @@ MAIN    PROC FAR
             ;   READING COMMAND NUMBER
             MOV AH, 0
             INT 16h
+            CMP AL, 30H
+            JL  INVALID_COMMAND
+            CMP AL, 66H
+            JG  INVALID_COMMAND
+            CMP AL, 40H
+            JL  VALID_COMMAND
+            CMP AL, 61H
+            JL  INVALID_COMMAND
+            
+            VALID_COMMAND:
             MOV COMMAND_NUMBER, AL
             
             READ_SRC_OPTION:
@@ -249,129 +263,129 @@ MAIN    PROC FAR
             
             CMP AL, 30H
             JNE SRC_REG_NOT_AX
-
             MOV SRC_REG_NUM, 0                 ;   SOURCE REG  IS AX
             MOV SI, VAX
+            MOV SRC_REG_16_VALUE, SI
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_AX:
             CMP AL, 31H
             JNE SRC_REG_NOT_BX
-
             MOV SRC_REG_NUM, 1                 ;   SOURCE REG  IS BX
             MOV SI, VBX
+            MOV SRC_REG_16_VALUE, SI
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_BX:
             CMP AL, 32H
             JNE SRC_REG_NOT_CX
-
             MOV SRC_REG_NUM, 2                 ;   SOURCE REG  IS CX
             MOV SI, VCX
+            MOV SRC_REG_16_VALUE, SI
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_CX:
             CMP AL, 33H       
             JNE SRC_REG_NOT_DX
-
             MOV SRC_REG_NUM, 3                 ;   SOURCE REG  IS DX
             MOV SI, VDX
+            MOV SRC_REG_16_VALUE, SI
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_DX:
             CMP AL, 34H       
             JNE SRC_REG_NOT_SI
-            
             MOV SRC_REG_NUM, 4                 ;   SOURCE REG  IS SI
             MOV SI, VSI
+            MOV SRC_REG_16_VALUE, SI
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_SI:
             CMP AL, 35H       
             JNE SRC_REG_NOT_DI:
-            
             MOV SRC_REG_NUM, 5                 ;   SOURCE REG  IS DI
             MOV SI, VDI
+            MOV SRC_REG_16_VALUE, SI
             JMP READ_DEST_OPTION                                          
             
             SRC_REG_NOT_DI:
             CMP AL, 36H       
             JNE SRC_REG_NOT_SP
-            
             MOV SRC_REG_NUM, 6                 ;   SOURCE REG  IS SP
             MOV SI, VSP
+            MOV SRC_REG_16_VALUE, SI
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_SP:
             CMP AL, 37       
             JNE SRC_REG_NOT_BP
-            
             MOV SRC_REG_NUM, 7                 ;   SOURCE REG  IS BP
             MOV SI, VBP
+            MOV SRC_REG_16_VALUE, SI
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_BP:
             CMP AL, 38H       
             JNE SRC_REG_NOT_AL
-            
             MOV SRC_REG_NUM, 8                 ;   SOURCE REG  IS AL
             MOV DL, BYTE PTR VAX
+            MOV SRC_REG_8_VALUE, DL
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_AL:
             CMP AL, 39H       
             JNE SRC_REG_NOT_AH
-            
             MOV SRC_REG_NUM, 9                 ;   SOURCE REG  IS AH
             MOV DL, BYTE PTR VAX+1
+            MOV SRC_REG_8_VALUE, DL
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_AH:
             CMP AL, 61H       
             JNE SRC_REG_NOT_BL
-            
             MOV SRC_REG_NUM, 10                 ;   SOURCE REG  IS BL
             MOV DL, BYTE PTR VBX
+            MOV SRC_REG_8_VALUE, DL
             JMP READ_DEST_OPTION 
             
             SRC_REG_NOT_BL:
             CMP AL, 62H       
             JNE SRC_REG_NOT_BH
-            
             MOV SRC_REG_NUM, 11                 ;   SOURCE REG  IS BH
             MOV DL, BYTE PTR VBX+1
+            MOV SRC_REG_8_VALUE, DL
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_BH:
             CMP AL, 63H       
             JNE SRC_REG_NOT_CL
-            
             MOV SRC_REG_NUM, 12                 ;   SOURCE REG  IS CL
             MOV DL, BYTE PTR VCX
+            MOV SRC_REG_8_VALUE, DL
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_CL:
             CMP AL, 64H       
             JNE SRC_REG_NOT_CH
-            
             MOV SRC_REG_NUM, 13                 ;   SOURCE REG  IS CH
             MOV DL, BYTE PTR VCX+1
+            MOV SRC_REG_8_VALUE, DL
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_CH:
             CMP AL, 65H       
             JNE SRC_REG_NOT_DL
-             
             MOV SRC_REG_NUM, 14                 ;   SOURCE REG  IS DL
             MOV DL, BYTE PTR VDX
+            MOV SRC_REG_8_VALUE, DL
             JMP READ_DEST_OPTION
             
             SRC_REG_NOT_DL:
             CMP AL, 66H        
             JNE INVALID_SRC_REG_NUMBER
-             
             MOV SRC_REG_NUM, 15                 ;   SOURCE REG  IS DH
             MOV DL, BYTE PTR VDX+1
+            MOV SRC_REG_8_VALUE, DL
             JMP READ_DEST_OPTION
             
             
@@ -426,11 +440,6 @@ MAIN    PROC FAR
             
             
             
-            
-            
-            
-            
-            
             READ_DEST_OPTION:
             ;   READING DEST OPTION
             MOV AH, 0
@@ -446,12 +455,11 @@ MAIN    PROC FAR
             MOV AH, 0
             INT 16h
             
-            
-            
             CMP AL, 30H       
             JNE DEST_REG_NOT_AX
             MOV DEST_REG_NUM, 0                 ;   DESTINATION REG  IS AX
             LEA DI, VAX
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             
@@ -460,6 +468,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_BX
             MOV DEST_REG_NUM, 1                 ;   DESTINATION REG  IS BX
             LEA DI, VBX
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_BX:
@@ -467,6 +476,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_CX
             MOV DEST_REG_NUM, 2                 ;   DESTINATION REG  IS CX
             LEA DI, VCX
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_CX:
@@ -474,6 +484,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_DX
             MOV DEST_REG_NUM, 3                 ;   DESTINATION REG  IS DX
             LEA DI, VDX
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_DX:
@@ -481,6 +492,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_SI
             MOV DEST_REG_NUM, 4                 ;   DESTINATION REG  IS SI
             LEA DI, VSI
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_SI:
@@ -488,6 +500,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_DI
             MOV DEST_REG_NUM, 5                 ;   DESTINATION REG  IS DI
             LEA DI, VDI
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND                                          
             
             
@@ -496,6 +509,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_SP
             MOV DEST_REG_NUM, 6                 ;   DESTINATION REG  IS SP
             LEA DI, VSP
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_SP:
@@ -503,6 +517,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_BP
             MOV DEST_REG_NUM, 7                 ;   DESTINATION REG  IS BP
             LEA DI, VBP
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
                         
             DEST_REG_NOT_BP:
@@ -510,6 +525,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_AL
             MOV DEST_REG_NUM, 8                 ;   DESTINATION REG  IS AL
             LEA DI, VAX
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_AL:
@@ -518,6 +534,7 @@ MAIN    PROC FAR
             MOV DEST_REG_NUM, 9                 ;   DESTINATION REG  IS AH
             LEA DI, VAX
             INC DI
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_AH:
@@ -525,6 +542,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_BL
             MOV DEST_REG_NUM, 10                 ;   DESTINATION REG  IS BL
             LEA DI, VBX
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_BL:
@@ -533,6 +551,7 @@ MAIN    PROC FAR
             MOV DEST_REG_NUM, 11                 ;   DESTINATION REG  IS BH
             LEA DI, VBX
             INC DI
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_BH:
@@ -540,6 +559,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_CL
             MOV DEST_REG_NUM, 12                 ;   DESTINATION REG  IS CL
             LEA DI, VCX
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_CL:
@@ -547,7 +567,8 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_CH
             MOV DEST_REG_NUM, 13                 ;   DESTINATION REG  IS CH
             LEA DI, VCX
-            INC DI
+            INC DI     
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_CH:
@@ -555,6 +576,7 @@ MAIN    PROC FAR
             JNE DEST_REG_NOT_DL
             MOV DEST_REG_NUM, 14                 ;   DESTINATION REG  IS DL
             LEA DI, VDX
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             DEST_REG_NOT_DL:
@@ -563,6 +585,7 @@ MAIN    PROC FAR
             MOV DEST_REG_NUM, 15                 ;   DESTINATION REG  IS DH
             LEA DI, VDX
             INC DI
+            MOV DEST_REG_16_8_ADDRESS, DI
             JMP EXECUTE_COMMAND
             
             
@@ -573,8 +596,8 @@ MAIN    PROC FAR
             DEST_NOT_REG:
             CMP AL, 32H       ;   CHECK IF 2 PRESSED (MEMORY)
             JNE INVALID_DEST_OPTION
-            
             MOV DEST_OPTION, 2
+            
             ;   READING DEST MEMORY LOCATION
             MOV AH, 0AH
             MOV DX, OFFSET DEST_MEMORY_ADDRESS
@@ -599,19 +622,18 @@ MAIN    PROC FAR
             
             ;   USE THEM IN THE MACRO DIRECTLY, NO NEED TO PARAMETERS
             ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-            ;   SI                              => SRC REG 16
-            ;   DL                              => SRC REG 8
-            ;   DI                              => OFFSET DEST REG (16 & 8)
-            
-            ;   DEST_OPTION
-            ;   DEST_REG_NUM                                          
-            ;   DEST_MEMORY_ADDRESS_NUMBER
-            
+            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;             
             ;   SRC_OPTION  
-            ;   SRC_REG_NUM                                   
+            ;   SRC_REG_NUM                                          
+            ;   SRC_REG_16_VALUE            
+            ;   SRC_REG_8_VALUE
             ;   SRC_MEMORY_ADDRESS_NUMBER   
             ;   SRC_IMMEDIATE_VALUE_NUMBER
+            
+            ;   DEST_OPTION
+            ;   DEST_REG_NUM
+            ;   DEST_REG_16_8_ADDRESS                                   
+            ;   DEST_MEMORY_ADDRESS_NUMBER
             ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
             ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
             
@@ -646,6 +668,7 @@ MAIN    PROC FAR
             
             SIZE_MISMATCH_ERROR:
             MEMORY_TO_MEMORY_OPERATION_ERROR:
+            INVALID_COMMAND:
             
         JMP MAIN_LOOP   
 
